@@ -43,13 +43,22 @@ def SSD_loss(pred_confidence, pred_box, ann_confidence, ann_box):
 
 class SSD(nn.Module):
 
-    def __init__(self, class_num):
+    def __init__(self, class_num, batch_size):
         super(SSD, self).__init__()
         
         self.class_num = class_num #num_of_classes, in this assignment, 4: cat, dog, person, background
+        self.batch_size = batch_size
         
         #TODO: define layers
+        self.convBlock = nn.Sequential(nn.Conv2d(3,64,3,2,1), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,128,3,2,1), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,256,3,2,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,512,3,2,1), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,256,3,2,1), nn.BatchNorm2d(256), nn.ReLU())
+
+        self.main_conv1 = nn.Sequential(nn.Conv2d(256,256,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,2,1), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv2 = nn.Sequential(nn.Conv2d(256,256,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv3 = nn.Sequential(nn.Conv2d(256,256,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU())
         
+        self.fork_main_conv = nn.Conv2d(256,16,1,1)
+
+        self.fork_branch_conv = nn.Conv2d(256,16,3,1,1)
         
     def forward(self, x):
         #input:
@@ -58,6 +67,38 @@ class SSD(nn.Module):
         x = x/255.0 #normalize image. If you already normalized your input image in the dataloader, remove this line.
         
         #TODO: define forward
+        x = self.convBlock(x)
+
+        x1 = self.main_conv1(x)
+        x2_left1 = self.fork_branch_conv(x)
+        x2_left1 = torch.reshape(x2_left1, (self.batch_size, 16, 100))
+        x2_right1 = self.fork_branch_conv(x)
+        x2_right1 = torch.reshape(x2_right1, (self.batch_size, 16, 100))
+
+        x2_left2 = self.fork_branch_conv(x1)
+        x2_left2 = torch.reshape(x2_left2, (self.batch_size, 16, 25))
+        x2_right2 = self.fork_branch_conv(x1)
+        x2_right2 = torch.reshape(x2_right2, (self.batch_size, 16, 25))
+        x1 = self.main_conv2(x1)
+
+        x2_left3 = self.fork_branch_conv(x1)
+        x2_left3 = torch.reshape(x2_left3, (self.batch_size, 16, 9))
+        x2_right3 = self.fork_branch_conv(x1)
+        x2_right3 = torch.reshape(x2_right3, (self.batch_size, 16, 9))
+        x1 = self.main_conv3(x1)
+
+        x1left = self.fork_main_conv(x1)
+        x1left = torch.reshape(x1left, (self.batch_size, 16, 1))
+        x1right = self.fork_main_conv(x1)
+        x1right = torch.reshape(x1right, (self.batch_size, 16, 1))
+
+        bboxes = torch.cat((x1left,x2_left1,x2_left2,x2_left3),2)
+        bboxes = torch.permute(bboxes, (0,2,1))
+        bboxes = torch.reshape(bboxes, self.batch_size, 540, 4)
+
+        confidence = torch.cat((x1right,x2_right1,x2_right2,x2_right3),2)
+        confidence = torch.permute(confidence, (0,2,1))
+        confidence = torch.reshape(confidence, self.batch_size, 540, 4)
         
         #should you apply softmax to confidence? (search the pytorch tutorial for F.cross_entropy.) If yes, which dimension should you apply softmax?
         
