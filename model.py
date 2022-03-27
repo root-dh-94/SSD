@@ -50,22 +50,22 @@ class SSD(nn.Module):
         self.batch_size = batch_size
         
         #TODO: define layers
-        self.convBlock = nn.Sequential(nn.Conv2d(3,64,3,2,1), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,128,3,2,1), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,256,3,2,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,512,3,2,1), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,256,3,2,1), nn.BatchNorm2d(256), nn.ReLU())
+        self.convBlock = nn.Sequential(nn.Conv2d(3,64,3,2,1,bias=True), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1,bias=True), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1,bias=True), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,128,3,2,1,bias=True), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1,bias=True), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1,bias=True), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,256,3,2,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,512,3,2,1,bias=True), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1,bias=True), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1,bias=True), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,256,3,2,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
 
-        self.main_conv1 = nn.Sequential(nn.Conv2d(256,256,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,2,1), nn.BatchNorm2d(256), nn.ReLU())
-        self.main_conv2 = nn.Sequential(nn.Conv2d(256,256,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU())
-        self.main_conv3 = nn.Sequential(nn.Conv2d(256,256,1,1), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv1 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,2,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv2 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv3 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
         
-        self.fork_main_conv = nn.Conv2d(256,16,1,1)
+        self.fork_main_conv = nn.Conv2d(256,16,1,1,bias=True)
 
-        self.fork_branch_conv = nn.Conv2d(256,16,3,1,1)
+        self.fork_branch_conv = nn.Conv2d(256,16,3,1,1,bias=True)
         
     def forward(self, x):
         #input:
         #x -- images, [batch_size, 3, 320, 320]
         
         x = x/255.0 #normalize image. If you already normalized your input image in the dataloader, remove this line.
-        
+
         #TODO: define forward
         x = self.convBlock(x)
 
