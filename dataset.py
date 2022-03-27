@@ -120,6 +120,29 @@ class COCO(torch.utils.data.Dataset):
         #3. use the above function "match" to update ann_box and ann_confidence, for each bounding box in "ann_name".
         #4. Data augmentation. You need to implement random cropping first. You can try adding other augmentations to get better results.
         
+        #Read txt
+        with open(ann_name) as f:
+            lines = f.readlines()
+        
+        #Load and open images
+        image = Image.open(img_name)
+        orig_w, orig_h = image.size[0], image.size[1]
+        image = transforms.Resize(image,(self.image_size,self.image_size))
+
+        #loop through lines in txt file
+        for line in lines:
+            box_coords = line.split(" ")
+            class_id, x_min, y_min, x_max, y_max = box_coords
+            y_max = y_max[:-2]
+            class_id, x_min, y_min, x_max, y_max = int(class_id), float(x_min), float(y_min), float(x_max), float(y_max)
+
+            #renormalize box values wrt resized dims
+            x_min = x_min * orig_w / self.image_size
+            x_max = x_max * orig_w / self.image_size
+            y_min = y_min * orig_h / self.image_size
+            y_max = y_max * orig_h / self.image_size
+
+            ann_box, ann_confidence = match(ann_box,ann_confidence,class_id,x_min,y_min,x_max,y_max)
         #to use function "match":
         #match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #where [x_min,y_min,x_max,y_max] is from the ground truth bounding box, normalized with respect to the width or height of the image.
