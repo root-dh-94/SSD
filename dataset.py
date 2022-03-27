@@ -11,6 +11,8 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import cv2
+import math
+from PIL import Image
 
 #generate default bounding boxes
 def default_box_generator(layers, large_scale, small_scale):
@@ -31,6 +33,39 @@ def default_box_generator(layers, large_scale, small_scale):
     #where ssize is the corresponding size in "small_scale" and lsize is the corresponding size in "large_scale".
     #for a cell in layer[i], you should use ssize=small_scale[i] and lsize=large_scale[i].
     #the last dimension 8 means each default bounding box has 8 attributes: [x_center, y_center, box_width, box_height, x_min, y_min, x_max, y_max]
+    boxes = np.zeros((135,4,8))
+    
+
+    #generate boxes for grid 10
+    for idx, grid in enumerate(layers):
+        grid_size = 1 / grid
+        grid_centre = grid_size / 2
+        ssize = small_scale[idx]
+        lsize = large_scale[idx]
+        box_dims = [[ssize,ssize], [lsize,lsize], [lsize*math.sqrt(2),lsize/math.sqrt(2)], [lsize/math.sqrt(2),lsize*math.sqrt(2)]]
+        boxes = diff_grids(boxes, grid_centre, ssize, lsize, box_dims[idx])
+
+    #clip boxes exceeding img limits
+    boxes = np.clip(boxes, 0, 1)
+
+    return boxes
+
+def diff_grids(boxes, grid_centre, ssize, lsize, box_dims):
+    #loop through each cell in size 10 grid
+    for i in range(100):
+        row = i // 10
+        column = i % 10
+
+        #set box dimensions for each one of 4 default boxes
+        for j in range(4):
+            boxes[i][j][0] = (column * 0.1) + grid_centre
+            boxes[i][j][1] = (row * 0.1) + grid_centre
+            boxes[i][j][2] = box_dims[0]
+            boxes[i][j][3] = box_dims[1]
+            boxes[i][j][4] = boxes[i][j][0] - boxes[i][j][2] / 2
+            boxes[i][j][5] = boxes[i][j][1] - boxes[i][j][3] / 2
+            boxes[i][j][6] = boxes[i][j][0] + boxes[i][j][2] / 2
+            boxes[i][j][7] = boxes[i][j][0] + boxes[i][j][3] / 2
     
     return boxes
 
