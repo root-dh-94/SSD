@@ -35,7 +35,6 @@ def default_box_generator(layers, large_scale, small_scale):
     #the last dimension 8 means each default bounding box has 8 attributes: [x_center, y_center, box_width, box_height, x_min, y_min, x_max, y_max]
     boxes = np.zeros((135,4,8))
     
-
     #generate boxes for grid 10
     for idx, grid in enumerate(layers):
         grid_size = 1 / grid
@@ -43,14 +42,15 @@ def default_box_generator(layers, large_scale, small_scale):
         ssize = small_scale[idx]
         lsize = large_scale[idx]
         box_dims = [[ssize,ssize], [lsize,lsize], [lsize*math.sqrt(2),lsize/math.sqrt(2)], [lsize/math.sqrt(2),lsize*math.sqrt(2)]]
-        boxes = diff_grids(boxes, grid_centre, ssize, lsize, box_dims[idx])
+        boxes = diff_grids(boxes, grid_centre, box_dims)
 
-    #clip boxes exceeding img limits
+    #clip boxes exceeding img limits and reshape to desired shape
     boxes = np.clip(boxes, 0, 1)
+    boxes = np.reshape(boxes, (540,8))
 
     return boxes
 
-def diff_grids(boxes, grid_centre, ssize, lsize, box_dims):
+def diff_grids(boxes, grid_centre, box_dims):
     #loop through each cell in size 10 grid
     for i in range(100):
         row = i // 10
@@ -60,15 +60,14 @@ def diff_grids(boxes, grid_centre, ssize, lsize, box_dims):
         for j in range(4):
             boxes[i][j][0] = (column * 0.1) + grid_centre
             boxes[i][j][1] = (row * 0.1) + grid_centre
-            boxes[i][j][2] = box_dims[0]
-            boxes[i][j][3] = box_dims[1]
+            boxes[i][j][2] = box_dims[j][0]
+            boxes[i][j][3] = box_dims[j][1]
             boxes[i][j][4] = boxes[i][j][0] - boxes[i][j][2] / 2
             boxes[i][j][5] = boxes[i][j][1] - boxes[i][j][3] / 2
             boxes[i][j][6] = boxes[i][j][0] + boxes[i][j][2] / 2
             boxes[i][j][7] = boxes[i][j][0] + boxes[i][j][3] / 2
     
     return boxes
-
 
 #this is an example implementation of IOU.
 #It is different from the one used in YOLO, please pay attention.
@@ -106,12 +105,54 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
     #update ann_box and ann_confidence, with respect to the ious and the default bounding boxes.
     #if a default bounding box and the ground truth bounding box have iou>threshold, then we will say this default bounding box is carrying an object.
     #this default bounding box will be used to update the corresponding entry in ann_box and ann_confidence
-    
-    ious_true = np.argmax(ious)
+    x_centre = (x_min + x_max) / 2
+    y_centre = (y_min + y_max) / 2
+    width = x_max - x_min
+    height = y_max - y_min
+    for idx, val in enumerate(ious_true):
+        if val:
+            #update ann_box
+            ann_box[idx][0] = (x_centre - boxs_default[idx][0]) / boxs_default[idx][2]
+            ann_box[idx][1] = (y_centre - boxs_default[idx][1]) / boxs_default[idx][3]
+            ann_box[idx][2] = math.log(width / boxs_default[idx][2])
+            ann_box[idx][3] = math.log(height / boxs_default[idx][3])
+
+            #update ann_confidence
+            if cat_id == 0:
+                ann_confidence[idx][0] = 1
+                ann_confidence[idx][3] = 0
+            
+            elif cat_id == 1:
+                ann_confidence[idx][1] = 1
+                ann_confidence[idx][3] = 0
+
+            elif cat_id == 2:
+                ann_confidence[idx][2] = 1
+                ann_confidence[idx][3] = 0
+
+    if ious_true.sum() == 0:
+        ious_true = np.argmax(ious)
+
+        ann_box[ious_true][0] = (x_centre - boxs_default[ious_true][0]) / boxs_default[ious_true][2]
+        ann_box[ious_true][1] = (y_centre - boxs_default[ious_true][1]) / boxs_default[ious_true][3]
+        ann_box[ious_true][2] = math.log(width / boxs_default[ious_true][2])
+        ann_box[ious_true][3] = math.log(height / boxs_default[ious_true][3])
+
+        if cat_id == 0:
+            ann_confidence[idx][0] = 1
+            ann_confidence[idx][3] = 0
+            
+        elif cat_id == 1:
+            ann_confidence[idx][1] = 1
+            ann_confidence[idx][3] = 0
+
+        elif cat_id == 2:
+            ann_confidence[idx][2] = 1
+            ann_confidence[idx][3] = 0
     #TODO:
     #make sure at least one default bounding box is used
     #update ann_box and ann_confidence (do the same thing as above)
-
+    return ann_box, ann_confidence
 
 
 class COCO(torch.utils.data.Dataset):
@@ -177,13 +218,12 @@ class COCO(torch.utils.data.Dataset):
             y_min = y_min * orig_h / self.image_size
             y_max = y_max * orig_h / self.image_size
 
-            ann_box, ann_confidence = match(ann_box,ann_confidence,class_id,x_min,y_min,x_max,y_max)
+            ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #to use function "match":
-        #match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
+        #ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #where [x_min,y_min,x_max,y_max] is from the ground truth bounding box, normalized with respect to the width or height of the image.
         
         #note: please make sure x_min,y_min,x_max,y_max are normalized with respect to the width or height of the image.
         #For example, point (x=100, y=200) in a image with (width=1000, height=500) will be normalized to (x/width=0.1,y/height=0.4)
-        
         
         return image, ann_box, ann_confidence
