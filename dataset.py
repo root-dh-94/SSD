@@ -34,7 +34,7 @@ def default_box_generator(layers, large_scale, small_scale):
     #for a cell in layer[i], you should use ssize=small_scale[i] and lsize=large_scale[i].
     #the last dimension 8 means each default bounding box has 8 attributes: [x_center, y_center, box_width, box_height, x_min, y_min, x_max, y_max]
     boxes = np.zeros((135,4,8))
-    
+    prev = 0
     #generate boxes for grid 10
     for idx, grid in enumerate(layers):
         grid_size = 1 / grid
@@ -42,7 +42,9 @@ def default_box_generator(layers, large_scale, small_scale):
         ssize = small_scale[idx]
         lsize = large_scale[idx]
         box_dims = [[ssize,ssize], [lsize,lsize], [lsize*math.sqrt(2),lsize/math.sqrt(2)], [lsize/math.sqrt(2),lsize*math.sqrt(2)]]
-        boxes = diff_grids(boxes, grid_centre, box_dims)
+        end = grid * grid
+        boxes = diff_grids(boxes, grid_centre, box_dims, prev, end, grid)
+        prev = grid * grid 
 
     #clip boxes exceeding img limits and reshape to desired shape
     boxes = np.clip(boxes, 0, 1)
@@ -50,11 +52,11 @@ def default_box_generator(layers, large_scale, small_scale):
 
     return boxes
 
-def diff_grids(boxes, grid_centre, box_dims):
-    #loop through each cell in size 10 grid
-    for i in range(100):
-        row = i // 10
-        column = i % 10
+def diff_grids(boxes, grid_centre, box_dims, prev, end, grid):
+    #loop through each cell
+    for i in range(prev, end):
+        row = i // grid
+        column = i % grid
 
         #set box dimensions for each one of 4 default boxes
         for j in range(4):
