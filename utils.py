@@ -77,6 +77,32 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
                 #TODO:
                 #image3: draw network-predicted bounding boxes on image3
                 #image4: draw network-predicted "default" boxes on image4 (to show which cell does your network think that contains an object)
+                dx,dy,dw,dh = pred_box[i]
+                px,py,pw,ph = boxs_default[i,0:4]
+                x_centre = pw * dx + px
+                y_centre = ph * dy + py
+                w = pw * np.exp(dw)
+                h = ph * np.exp(dh)
+                x1 = x_centre - w / 2
+                y1 = y_centre - h / 2
+                x2 = x_centre + w / 2
+                y2 = y_centre + h / 2
+
+                start_point = (x1, y1) #top left corner, x1<x2, y1<y2
+                end_point = (x2, y2) #bottom right corner
+                color = colors[j] #use red green blue to represent different classes
+                thickness = 2
+                image3 = cv2.rectangle(image3, start_point, end_point, color, thickness)
+
+                x1 = boxs_default[i,4]
+                y1 = boxs_default[i,5]
+                x2 = boxs_default[i,6]
+                y2 = boxs_default[i,7]
+                start_point = (x1, y1) #top left corner, x1<x2, y1<y2
+                end_point = (x2, y2) #bottom right corner
+                color = colors[j] #use red green blue to represent different classes
+                thickness = 2
+                image4 = cv2.rectangle(image4, start_point, end_point, color, thickness)
     
     #combine four images into one
     h,w,_ = image1.shape
@@ -85,7 +111,8 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
     image[:h,w:] = image2
     image[h:,:w] = image3
     image[h:,w:] = image4
-    cv2.imshow(windowname+" [[gt_box,gt_dft],[pd_box,pd_dft]]",image)
+    #cv2.imshow(windowname+" [[gt_box,gt_dft],[pd_box,pd_dft]]",image)
+    cv2.imwrite("test", image)
     cv2.waitKey(1)
     #if you are using a server, you may not be able to display the image.
     #in that case, please save the image using cv2.imwrite and check the saved image for visualization.
