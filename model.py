@@ -37,8 +37,18 @@ def SSD_loss(pred_confidence, pred_box, ann_confidence, ann_box):
     #and reshape box to [batch_size*num_of_boxes, 4].
     #Then you need to figure out how you can get the indices of all cells carrying objects,
     #and use confidence[indices], box[indices] to select those cells.
+    pred_confidence = torch.reshape(pred_confidence, (-1,4))
+    pred_box = torch.reshape(pred_box, (-1,4))
+    ann_confidence = torch.reshape(ann_confidence, (-1,4))
+    ann_box = torch.reshape(ann_box, (-1,4))
 
-
+    #Separate boxes with objects from boxes without
+    obj_idx = []
+    noobj_idx = []
+    for idx, val in pred_confidence:
+        if val[0] == 1 or val[1] == 1 or val[2] == 1:
+            obj_idx.append(idx)
+        else: noobj_idx.append(idx)
 
 
 class SSD(nn.Module):
@@ -92,11 +102,11 @@ class SSD(nn.Module):
         x1right = self.fork_main_conv(x1)
         x1right = torch.reshape(x1right, (self.batch_size, 16, 1))
 
-        bboxes = torch.cat((x1left,x2_left1,x2_left2,x2_left3),2)
+        bboxes = torch.cat((x2_left1,x2_left2,x2_left3,x1left),2)
         bboxes = torch.permute(bboxes, (0,2,1))
         bboxes = torch.reshape(bboxes, self.batch_size, 540, 4)
 
-        confidence = torch.cat((x1right,x2_right1,x2_right2,x2_right3),2)
+        confidence = torch.cat((x2_right1,x2_right2,x2_right3,x1right),2)
         confidence = torch.permute(confidence, (0,2,1))
         confidence = torch.reshape(confidence, self.batch_size, 540, 4)
         
