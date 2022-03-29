@@ -31,16 +31,15 @@ args = parser.parse_args()
 class_num = 4 #cat dog person background
 
 num_epochs = 100
-batch_size = 32
-
-
+#batch_size = 32
+batch_size = 1
 boxs_default = default_box_generator([10,5,3,1], [0.2,0.4,0.6,0.8], [0.1,0.3,0.5,0.7])
 
 
 #Create network
-network = SSD(class_num)
-network.cuda()
-cudnn.benchmark = True
+#network = SSD(class_num)
+#network.cuda()
+#cudnn.benchmark = True
 
 
 if not args.test:
@@ -50,14 +49,14 @@ if not args.test:
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size, shuffle=True, num_workers=0)
     
-    optimizer = optim.Adam(network.parameters(), lr = 1e-4)
+    #optimizer = optim.Adam(network.parameters(), lr = 1e-4)
     #feel free to try other optimizers and parameters.
     
     start_time = time.time()
 
     for epoch in range(num_epochs):
         #TRAINING
-        network.train()
+        #network.train()
 
         avg_loss = 0
         avg_count = 0
