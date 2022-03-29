@@ -13,6 +13,7 @@ import os
 import cv2
 import math
 from PIL import Image
+from torchvision.transforms import functional as F
 
 #generate default bounding boxes
 def default_box_generator(layers, large_scale, small_scale):
@@ -42,9 +43,8 @@ def default_box_generator(layers, large_scale, small_scale):
         ssize = small_scale[idx]
         lsize = large_scale[idx]
         box_dims = [[ssize,ssize], [lsize,lsize], [lsize*math.sqrt(2),lsize/math.sqrt(2)], [lsize/math.sqrt(2),lsize*math.sqrt(2)]]
-        end = grid * grid
-        boxes = diff_grids(boxes, grid_centre, box_dims, prev, end, grid)
-        prev = grid * grid 
+        boxes = diff_grids(boxes, grid_centre, box_dims, grid, prev, grid_size)
+        prev += grid * grid
 
     #clip boxes exceeding img limits and reshape to desired shape
     boxes = np.clip(boxes, 0, 1)
@@ -52,22 +52,22 @@ def default_box_generator(layers, large_scale, small_scale):
 
     return boxes
 
-def diff_grids(boxes, grid_centre, box_dims, prev, end, grid):
+def diff_grids(boxes, grid_centre, box_dims, grid, prev, grid_size):
     #loop through each cell
-    for i in range(prev, end):
-        row = i // grid
-        column = i % grid
+    for i in range(prev, prev+grid*grid):
+        row = (i-prev) // grid
+        column = (i-prev) % grid
 
         #set box dimensions for each one of 4 default boxes
         for j in range(4):
-            boxes[i][j][0] = (column * 0.1) + grid_centre
-            boxes[i][j][1] = (row * 0.1) + grid_centre
+            boxes[i][j][0] = (column * grid_size) + grid_centre
+            boxes[i][j][1] = (row * grid_size) + grid_centre
             boxes[i][j][2] = box_dims[j][0]
             boxes[i][j][3] = box_dims[j][1]
             boxes[i][j][4] = boxes[i][j][0] - boxes[i][j][2] / 2
             boxes[i][j][5] = boxes[i][j][1] - boxes[i][j][3] / 2
             boxes[i][j][6] = boxes[i][j][0] + boxes[i][j][2] / 2
-            boxes[i][j][7] = boxes[i][j][0] + boxes[i][j][3] / 2
+            boxes[i][j][7] = boxes[i][j][1] + boxes[i][j][3] / 2
     
     return boxes
 
@@ -205,7 +205,7 @@ class COCO(torch.utils.data.Dataset):
         #Load and open images
         image = Image.open(img_name)
         orig_w, orig_h = image.size[0], image.size[1]
-        image = transforms.Resize(image,(self.image_size,self.image_size))
+        image = F.resize(image,(self.image_size,self.image_size))
 
         #loop through lines in txt file
         for line in lines:
@@ -214,11 +214,11 @@ class COCO(torch.utils.data.Dataset):
             y_max = y_max[:-2]
             class_id, x_min, y_min, x_max, y_max = int(class_id), float(x_min), float(y_min), float(x_max), float(y_max)
 
-            #renormalize box values wrt resized dims
-            x_min = x_min * orig_w / self.image_size
-            x_max = x_max * orig_w / self.image_size
-            y_min = y_min * orig_h / self.image_size
-            y_max = y_max * orig_h / self.image_size
+            #normalize box values 
+            x_min = x_min / orig_w 
+            x_max = x_max / orig_w 
+            y_min = y_min / orig_h 
+            y_max = y_max / orig_h 
             
             ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #to use function "match":
