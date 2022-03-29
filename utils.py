@@ -88,9 +88,70 @@ def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, thresh
     
     
     #TODO: non maximum suppression
+    max_class = np.argmax(confidence_[:,0:3], axis = 1)
+    a = range(0,540)
+    #a = confidence_.tolist()
+    b = []
 
+    while True:
+        #find max prob
+        max = np.amax(confidence_[a,0:3])
+        if max>threshold:
+            ious = []
 
+            #find row/col(box) where max prob occurs
+            row_idx = np.where(confidence_[a,0:3]==max)[0]
+            column_idx = np.argmax(confidence_[row_idx])
+            
+            #assign max prob box to a separate list
+            b.append(confidence_[a.pop(np.where(a==max)[0])])
 
+            #check which other boxes have same class
+            same_class_rows = np.where(max_class[a] == column_idx).tolist()
+
+            #remove the identity case
+            #for idx, val in same_class_rows:
+                #if val == row_idx:
+                    #same_class_rows.pop(idx)
+                    #break
+
+            #calculate box metrics for max prob box
+            dx,dy,dw,dh = box_[row_idx]
+            px,py,pw,ph = boxs_default[row_idx,0:4]
+            x_centre = pw * dx + px
+            y_centre = ph * dy + py
+            w = pw * np.exp(dw)
+            h = ph * np.exp(dh)
+            x_min = x_centre - w / 2
+            y_min = y_centre - h / 2
+            x_max = x_centre + w / 2
+            y_max = y_centre + h / 2
+            pred = [[x_centre, y_centre, w, h, x_min, y_min, x_max, y_max]]
+
+            #calculate box metrics for each other box of same class
+            for idx in same_class_rows:
+                #if idx == row_idx:
+                    #continue
+
+                d1x,d1y,d1w,d1h = box_[idx]
+                p1x,p1y,p1w,p1h = boxs_default[idx,0:4]
+                x1_centre = p1w * d1x + p1x
+                y1_centre = p1h * d1y + p1y
+                w1 = p1w * np.exp(d1w)
+                h1 = p1h * np.exp(d1h)
+                x1_min = x1_centre - w1 / 2
+                y1_min = y1_centre - h1 / 2
+                x1_max = x1_centre + w1 / 2
+                y1_max = y1_centre + h1 / 2
+
+                ious.append(iou(pred, x1_min, y1_min, x1_max, y1_max))
+
+            #remove boxes that have a lot of overlap
+            for idx, val in enumerate(ious):
+                if val > overlap:
+                    a.pop(np.where(a==same_class_rows[idx]))
+
+        else: break
 
 
 
