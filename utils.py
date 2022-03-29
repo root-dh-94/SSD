@@ -45,11 +45,15 @@ def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_bo
                 #image2: draw ground truth "default" boxes on image2 (to show that you have assigned the object to the correct cell/cells)
                 
                 #you can use cv2.rectangle as follows:
-                #start_point = (x1, y1) #top left corner, x1<x2, y1<y2
-                #end_point = (x2, y2) #bottom right corner
-                #color = colors[j] #use red green blue to represent different classes
-                #thickness = 2
-                #cv2.rectangle(image?, start_point, end_point, color, thickness)
+                x1 = boxs_default[i,4]
+                y1 = boxs_default[i,5]
+                x2 = boxs_default[i,6]
+                y2 = boxs_default[i,7]
+                start_point = (x1, y1) #top left corner, x1<x2, y1<y2
+                end_point = (x2, y2) #bottom right corner
+                color = colors[j] #use red green blue to represent different classes
+                thickness = 2
+                image2 = cv2.rectangle(image2, start_point, end_point, color, thickness)
     
     #pred
     for i in range(len(pred_confidence)):
