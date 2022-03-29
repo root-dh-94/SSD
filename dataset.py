@@ -217,7 +217,7 @@ class COCO(torch.utils.data.Dataset):
             x_max = x_max * orig_w / self.image_size
             y_min = y_min * orig_h / self.image_size
             y_max = y_max * orig_h / self.image_size
-
+            
             ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #to use function "match":
         #ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
