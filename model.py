@@ -79,7 +79,7 @@ class SSD(nn.Module):
         #input:
         #x -- images, [batch_size, 3, 320, 320]
         
-        x = x/255.0 #normalize image. If you already normalized your input image in the dataloader, remove this line.
+        #x = x/255.0 #normalize image. If you already normalized your input image in the dataloader, remove this line.
 
         #TODO: define forward
         x = self.convBlock(x)
@@ -109,11 +109,12 @@ class SSD(nn.Module):
 
         bboxes = torch.cat((x2_left1,x2_left2,x2_left3,x1left),2)
         bboxes = torch.permute(bboxes, (0,2,1))
-        bboxes = torch.reshape(bboxes, self.batch_size, 540, 4)
+        bboxes = torch.reshape(bboxes, (self.batch_size, 540, 4))
 
         confidence = torch.cat((x2_right1,x2_right2,x2_right3,x1right),2)
         confidence = torch.permute(confidence, (0,2,1))
-        confidence = torch.reshape(confidence, self.batch_size, 540, 4)
+        confidence = torch.reshape(confidence, (self.batch_size, 540, 4))
+        confidence = F.softmax(confidence, dim = 2)
         
         #should you apply softmax to confidence? (search the pytorch tutorial for F.cross_entropy.) If yes, which dimension should you apply softmax?
         
