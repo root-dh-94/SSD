@@ -46,9 +46,14 @@ def SSD_loss(pred_confidence, pred_box, ann_confidence, ann_box):
     obj_idx = []
     noobj_idx = []
     for idx, val in pred_confidence:
-        if val[0] == 1 or val[1] == 1 or val[2] == 1:
+        if val[0] >= .5 or val[1] >= .5 or val[2] >= .5:
             obj_idx.append(idx)
         else: noobj_idx.append(idx)
+    loss_cls = F.cross_entropy(pred_confidence[obj_idx], ann_confidence[obj_idx]) + 3 * F.cross_entropy(pred_confidence[noobj_idx], ann_confidence[noobj_idx])
+
+    loss_box = F.smooth_l1_loss(pred_box, ann_box)
+
+    return loss_cls + loss_box
 
 
 class SSD(nn.Module):
@@ -63,8 +68,8 @@ class SSD(nn.Module):
         self.convBlock = nn.Sequential(nn.Conv2d(3,64,3,2,1,bias=True), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1,bias=True), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,64,3,1,1,bias=True), nn.BatchNorm2d(64), nn.ReLU(), nn.Conv2d(64,128,3,2,1,bias=True), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1,bias=True), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,128,3,1,1,bias=True), nn.BatchNorm2d(128), nn.ReLU(), nn.Conv2d(128,256,3,2,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,512,3,2,1,bias=True), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1,bias=True), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,512,3,1,1,bias=True), nn.BatchNorm2d(512), nn.ReLU(), nn.Conv2d(512,256,3,2,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
 
         self.main_conv1 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,2,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
-        self.main_conv2 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
-        self.main_conv3 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv2 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
+        self.main_conv3 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
         
         self.fork_main_conv = nn.Conv2d(256,16,1,1,bias=True)
 
