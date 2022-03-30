@@ -111,26 +111,28 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
     y_centre = (y_min + y_max) / 2
     width = x_max - x_min
     height = y_max - y_min
-    for idx, val in enumerate(ious_true):
-        if val:
-            #update ann_box
-            ann_box[idx][0] = (x_centre - boxs_default[idx][0]) / boxs_default[idx][2]
-            ann_box[idx][1] = (y_centre - boxs_default[idx][1]) / boxs_default[idx][3]
-            ann_box[idx][2] = math.log(width / boxs_default[idx][2])
-            ann_box[idx][3] = math.log(height / boxs_default[idx][3])
 
-            #update ann_confidence
-            if cat_id == 0:
-                ann_confidence[idx][0] = 1
-                ann_confidence[idx][3] = 0
-            
-            elif cat_id == 1:
-                ann_confidence[idx][1] = 1
-                ann_confidence[idx][3] = 0
+    if ious_true.sum() > 0:
+        for idx, val in enumerate(ious_true):
+            if val:
+                #update ann_box
+                ann_box[idx][0] = (x_centre - boxs_default[idx][0]) / boxs_default[idx][2]
+                ann_box[idx][1] = (y_centre - boxs_default[idx][1]) / boxs_default[idx][3]
+                ann_box[idx][2] = math.log(width / boxs_default[idx][2])
+                ann_box[idx][3] = math.log(height / boxs_default[idx][3])
 
-            elif cat_id == 2:
-                ann_confidence[idx][2] = 1
-                ann_confidence[idx][3] = 0
+                #update ann_confidence
+                if cat_id == 0:
+                    ann_confidence[idx][0] = ious[idx]
+                    ann_confidence[idx][3] = 0
+                
+                elif cat_id == 1:
+                    ann_confidence[idx][1] = ious[idx]
+                    ann_confidence[idx][3] = 0
+
+                elif cat_id == 2:
+                    ann_confidence[idx][2] = ious[idx]
+                    ann_confidence[idx][3] = 0
 
     if ious_true.sum() == 0:
         ious_true = np.argmax(ious)
@@ -141,16 +143,16 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
         ann_box[ious_true][3] = math.log(height / boxs_default[ious_true][3])
 
         if cat_id == 0:
-            ann_confidence[idx][0] = 1
-            ann_confidence[idx][3] = 0
+            ann_confidence[ious_true][0] = ious[ious_true]
+            ann_confidence[ious_true][3] = 0
             
         elif cat_id == 1:
-            ann_confidence[idx][1] = 1
-            ann_confidence[idx][3] = 0
+            ann_confidence[ious_true][1] = ious[ious_true]
+            ann_confidence[ious_true][3] = 0
 
         elif cat_id == 2:
-            ann_confidence[idx][2] = 1
-            ann_confidence[idx][3] = 0
+            ann_confidence[ious_true][2] = ious[ious_true]
+            ann_confidence[ious_true][3] = 0
     #TODO:
     #make sure at least one default bounding box is used
     #update ann_box and ann_confidence (do the same thing as above)
@@ -210,9 +212,11 @@ class COCO(torch.utils.data.Dataset):
         #loop through lines in txt file
         for line in lines:
             box_coords = line.split(" ")
-            class_id, x_min, y_min, x_max, y_max = box_coords
-            y_max = y_max[:-2]
-            class_id, x_min, y_min, x_max, y_max = int(class_id), float(x_min), float(y_min), float(x_max), float(y_max)
+            class_id, x_min, y_min, w, h = box_coords
+            h = h[:-2]
+            class_id, x_min, y_min, w, h = int(class_id), float(x_min), float(y_min), float(w), float(h)
+            x_max = x_min + w
+            y_max = y_min + h
 
             #normalize box values 
             x_min = x_min / orig_w 
@@ -227,5 +231,6 @@ class COCO(torch.utils.data.Dataset):
         
         #note: please make sure x_min,y_min,x_max,y_max are normalized with respect to the width or height of the image.
         #For example, point (x=100, y=200) in a image with (width=1000, height=500) will be normalized to (x/width=0.1,y/height=0.4)
-        
+        normalize = transforms.ToTensor()
+        image = normalize(image)
         return image, ann_box, ann_confidence
