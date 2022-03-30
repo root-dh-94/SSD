@@ -160,11 +160,12 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
 
 
 class COCO(torch.utils.data.Dataset):
-    def __init__(self, imgdir, anndir, class_num, boxs_default, train = True, image_size=320):
+    def __init__(self, imgdir, anndir, class_num, boxs_default, train = True, image_size=320, val):
         self.train = train
         self.imgdir = imgdir
         self.anndir = anndir
         self.class_num = class_num
+        self.val = val
         
         #overlap threshold for deciding whether a bounding box carries an object or no
         self.threshold = 0.5
@@ -176,6 +177,10 @@ class COCO(torch.utils.data.Dataset):
         
         #notice:
         #you can split the dataset into 90% training and 10% validation here, by slicing self.img_names with respect to self.train
+        if self.train:
+            self.img_names = self.img_names[0:int(0.9 * len(self.img_names))]
+        if self.val:
+            self.img_names = self.img_names[int(0.9 * len(self.img_names)):]
 
     def __len__(self):
         return len(self.img_names)
