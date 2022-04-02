@@ -14,6 +14,7 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 from torch.autograd import Variable
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
 
 from dataset import *
 from model import *
@@ -51,7 +52,8 @@ if not args.test:
     #feel free to try other optimizers and parameters.
     
     start_time = time.time()
-
+    train_losses = []
+    val_losses = []
     for epoch in range(num_epochs):
         #TRAINING
         network.train()
@@ -59,7 +61,7 @@ if not args.test:
         avg_loss = 0
         avg_count = 0
         for i, data in enumerate(dataloader, 0):
-            images_, ann_box_, ann_confidence_ = data
+            images_, ann_box_, ann_confidence_, image_name = data
             images = images_.cuda()
             ann_box = ann_box_.cuda()
             ann_confidence = ann_confidence_.cuda()
@@ -72,15 +74,16 @@ if not args.test:
             
             avg_loss += loss_net.data
             avg_count += 1
-
-        print('[%d] time: %f train loss: %f' % (epoch, time.time()-start_time, avg_loss/avg_count))
+        loss = avg_loss/avg_count
+        train_losses.append(loss)
+        print('[%d] time: %f train loss: %f' % (epoch, time.time()-start_time, loss))
         
         #visualize
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
-        visualize_pred("train", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch,"train")
+        visualize_pred("train", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch,"train")
         pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
-        visualize_pred("train", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch,"train_nms")
+        visualize_pred("train", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch,"train_nms")
         
         
         #VALIDATION
@@ -90,7 +93,7 @@ if not args.test:
         # use the training set to train and the validation set to evaluate
         
         for i, data in enumerate(dataloader_test, 0):
-            images_, ann_box_, ann_confidence_ = data
+            images_, ann_box_, ann_confidence_, image_name = data
             images = images_.cuda()
             ann_box = ann_box_.cuda()
             ann_confidence = ann_confidence_.cuda()
@@ -106,13 +109,15 @@ if not args.test:
             
             #optional: implement a function to accumulate precision and recall to compute mAP or F1.
             #update_precision_recall(pred_confidence_, pred_box_, ann_confidence_.numpy(), ann_box_.numpy(), boxs_default,precision_,recall_,thres)
-        print('[%d] val loss: %f' % (epoch, avg_loss/avg_count))
+        loss = avg_loss/avg_count
+        val_losses.append(loss)
+        print('[%d] val loss: %f' % (epoch, loss))
         #visualize
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
-        visualize_pred("val", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch, "test")
+        visualize_pred("val", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch, "test")
         pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
-        visualize_pred("val", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch, "test_nms")
+        visualize_pred("val", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch, "test_nms")
         
         #optional: compute F1
         #F1score = 2*precision*recall/np.maximum(precision+recall,1e-8)
@@ -123,17 +128,26 @@ if not args.test:
             #save last network
             print('saving net...')
             torch.save(network.state_dict(), 'network.pth')
-
+    
+    plt.plot(np.arange(1,epoch+1),train_losses,"g-",label = "train losses")
+    plt.plot(np.arange(1,epoch+1),val_losses,"r-",label = "test_losses")
+    plt.xlabel("Epochs")
+    plt.ylabel("Losses")
+    plt.yticks(np.arange(.09,.22,.04))
+    plt.title("Losses across Epochs")
+    plt.legend()
+    plt.savefig("losses.png")
 
 else:
     #TEST
+    idxs = []
     dataset_test = COCO("data/data/test/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320, val = False)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=0)
     network.load_state_dict(torch.load('network.pth'))
     network.eval()
     
     for i, data in enumerate(dataloader_test, 0):
-        images_, ann_box_, ann_confidence_ = data
+        images_, ann_box_, ann_confidence_, image_name = data
         images = images_.cuda()
         ann_box = ann_box_.cuda()
         ann_confidence = ann_confidence_.cuda()
@@ -143,12 +157,33 @@ else:
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
         
+        
+        visualize_pred("test", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, image_name, "test_set_nms")
+        
         pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
         
         #TODO: save predicted bounding boxes and classes to a txt file.
         #you will need to submit those files for grading this assignment
         
-        visualize_pred("test", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default)
+        visualize_pred("test", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, image_name, "test_set_nms")
+        for idx, i in enumerate(pred_confidence[0:3]):
+            if i[0] != 0 or i[1] != 0 or i[2] ! = 0:
+                idxs.append(idx)
+        
+        with open('image_name.txt','w') as f:
+            for idx in idxs:
+                d1x,d1y,d1w,d1h = pred_box[idx]
+                p1x,p1y,p1w,p1h = boxs_default[idx,0:4]
+                x1_centre = p1w * d1x + p1x
+                y1_centre = p1h * d1y + p1y
+                w1 = p1w * np.exp(d1w)
+                h1 = p1h * np.exp(d1h)
+                x1_min = x1_centre - w1 / 2
+                y1_min = y1_centre - h1 / 2
+                x1_max = x1_centre + w1 / 2
+                y1_max = y1_centre + h1 / 2
+                id = np.argmax(pred_confidence[idx][0:3])
+                f.write(str(id) + ' ' + str(x1_min) + ' ' + str(y1_min) + ' ' + str(w1) + ' ' + str(h1) + '\n')
         cv2.waitKey(1000)
 
 
