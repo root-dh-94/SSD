@@ -45,15 +45,17 @@ def SSD_loss(pred_confidence, pred_box, ann_confidence, ann_box):
     #Separate boxes with objects from boxes without
     obj_idx = []
     noobj_idx = []
-    for idx, val in pred_confidence:
-        if val[0] >= .5 or val[1] >= .5 or val[2] >= .5:
-            obj_idx.append(idx)
-        else: noobj_idx.append(idx)
+    #for idx, val in enumerate(pred_confidence):
+       #if val[0] >= .5 or val[1] >= .5 or val[2] >= .5:
+            #obj_idx.append(idx)
+        #else: noobj_idx.append(idx)
+    #loss_cls = F.cross_entropy(pred_confidence[obj_idx], ann_confidence[obj_idx]) + 3 * F.cross_entropy(pred_confidence[noobj_idx], ann_confidence[noobj_idx])
+    obj_idx = (torch.max(ann_confidence[:,:3],dim=1)[0] > 0.5)
+    noobj_idx = (torch.max(ann_confidence[:,:3],dim=1)[0] < 0.5)
     loss_cls = F.cross_entropy(pred_confidence[obj_idx], ann_confidence[obj_idx]) + 3 * F.cross_entropy(pred_confidence[noobj_idx], ann_confidence[noobj_idx])
+    loss_box = F.smooth_l1_loss(pred_box[obj_idx], ann_box[obj_idx])
 
-    loss_box = F.smooth_l1_loss(pred_box, ann_box)
-
-    return loss_cls + loss_box
+    return loss_cls +  loss_box
 
 
 class SSD(nn.Module):
@@ -71,9 +73,15 @@ class SSD(nn.Module):
         self.main_conv2 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
         self.main_conv3 = nn.Sequential(nn.Conv2d(256,256,1,1,bias=True), nn.BatchNorm2d(256), nn.ReLU(), nn.Conv2d(256,256,3,1,bias=True), nn.BatchNorm2d(256), nn.ReLU())
         
-        self.fork_main_conv = nn.Conv2d(256,16,1,1,bias=True)
+        self.fork_main_conv_l = nn.Conv2d(256,16,1,1,bias=True)
+        self.fork_main_conv_r = nn.Conv2d(256,16,1,1,bias=True)
 
-        self.fork_branch_conv = nn.Conv2d(256,16,3,1,1,bias=True)
+        self.fork_branch_conv_1_l = nn.Conv2d(256,16,3,1,1,bias=True)
+        self.fork_branch_conv_1_r = nn.Conv2d(256,16,3,1,1,bias=True)
+        self.fork_branch_conv_2_l = nn.Conv2d(256,16,3,1,1,bias=True)
+        self.fork_branch_conv_2_r = nn.Conv2d(256,16,3,1,1,bias=True)
+        self.fork_branch_conv_3_l = nn.Conv2d(256,16,3,1,1,bias=True)
+        self.fork_branch_conv_3_r = nn.Conv2d(256,16,3,1,1,bias=True)
         
     def forward(self, x):
         #input:
@@ -85,26 +93,26 @@ class SSD(nn.Module):
         x = self.convBlock(x)
 
         x1 = self.main_conv1(x)
-        x2_left1 = self.fork_branch_conv(x)
+        x2_left1 = self.fork_branch_conv_1_l(x)
         x2_left1 = torch.reshape(x2_left1, (self.batch_size, 16, 100))
-        x2_right1 = self.fork_branch_conv(x)
+        x2_right1 = self.fork_branch_conv_1_r(x)
         x2_right1 = torch.reshape(x2_right1, (self.batch_size, 16, 100))
 
-        x2_left2 = self.fork_branch_conv(x1)
+        x2_left2 = self.fork_branch_conv_2_l(x1)
         x2_left2 = torch.reshape(x2_left2, (self.batch_size, 16, 25))
-        x2_right2 = self.fork_branch_conv(x1)
+        x2_right2 = self.fork_branch_conv_2_r(x1)
         x2_right2 = torch.reshape(x2_right2, (self.batch_size, 16, 25))
         x1 = self.main_conv2(x1)
 
-        x2_left3 = self.fork_branch_conv(x1)
+        x2_left3 = self.fork_branch_conv_3_l(x1)
         x2_left3 = torch.reshape(x2_left3, (self.batch_size, 16, 9))
-        x2_right3 = self.fork_branch_conv(x1)
+        x2_right3 = self.fork_branch_conv_3_r(x1)
         x2_right3 = torch.reshape(x2_right3, (self.batch_size, 16, 9))
         x1 = self.main_conv3(x1)
 
-        x1left = self.fork_main_conv(x1)
+        x1left = self.fork_main_conv_l(x1)
         x1left = torch.reshape(x1left, (self.batch_size, 16, 1))
-        x1right = self.fork_main_conv(x1)
+        x1right = self.fork_main_conv_r(x1)
         x1right = torch.reshape(x1right, (self.batch_size, 16, 1))
 
         bboxes = torch.cat((x2_left1,x2_left2,x2_left3,x1left),2)
@@ -115,6 +123,7 @@ class SSD(nn.Module):
         confidence = torch.permute(confidence, (0,2,1))
         confidence = torch.reshape(confidence, (self.batch_size, 540, 4))
         confidence = F.softmax(confidence, dim = 2)
+        
         
         #should you apply softmax to confidence? (search the pytorch tutorial for F.cross_entropy.) If yes, which dimension should you apply softmax?
         
