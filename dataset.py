@@ -189,18 +189,21 @@ class COCO(torch.utils.data.Dataset):
         return len(self.img_names)
 
     def __getitem__(self, index):
-        if self.train or self.val:
-            ann_box = np.zeros([self.box_num,4], np.float32) #bounding boxes
-            ann_confidence = np.zeros([self.box_num,self.class_num], np.float32) #one-hot vectors
+
+        ann_box = np.zeros([self.box_num,4], np.float32) #bounding boxes
+        ann_confidence = np.zeros([self.box_num,self.class_num], np.float32) #one-hot vectors
         #one-hot vectors with four classes
         #[1,0,0,0] -> cat
         #[0,1,0,0] -> dog
         #[0,0,1,0] -> person
         #[0,0,0,1] -> background
         
-            ann_confidence[:,-1] = 1 #the default class for all cells is set to "background"
+        ann_confidence[:,-1] = 1 #the default class for all cells is set to "background"
         
-            img_name = self.imgdir+self.img_names[index]
+        img_name = self.imgdir+self.img_names[index]
+
+        if self.train or self.val:
+
             ann_name = self.anndir+self.img_names[index][:-3]+"txt"
         
         #TODO:
@@ -286,7 +289,7 @@ class COCO(torch.utils.data.Dataset):
             image = image / 255    
         if image.shape[0] == 1:
             image = torch.cat((image,image,image), axis = 0)
-        return image, ann_box, ann_confidence,img_name
+        return image, ann_box, ann_confidence,img_name.rsplit("/", 1)[-1]
 
 def randCrop(xmin,ymin,xmax,ymax,image,img_w,img_h):
     x_low = random.randint(0,xmin)
