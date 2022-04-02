@@ -31,32 +31,30 @@ args = parser.parse_args()
 class_num = 4 #cat dog person background
 
 num_epochs = 100
-#batch_size = 32
-batch_size = 1
+batch_size = 32
 boxs_default = default_box_generator([10,5,3,1], [0.2,0.4,0.6,0.8], [0.1,0.3,0.5,0.7])
 
-
 #Create network
-#network = SSD(class_num)
-#network.cuda()
-#cudnn.benchmark = True
+network = SSD(class_num,batch_size)
+network.cuda()
+cudnn.benchmark = True
 
-
+val = False
 if not args.test:
-    dataset = COCO("data/train/images/", "data/train/annotations/", class_num, boxs_default, train = True, image_size=320)
-    dataset_test = COCO("data/train/images/", "data/train/annotations/", class_num, boxs_default, train = False, image_size=320)
+    dataset = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = True, image_size=320, val = False)
+    dataset_test = COCO("data/data/train/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320, val = True)
     
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size, shuffle=True, num_workers=0)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=True)
+    dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size, shuffle=True, num_workers=0, drop_last = True)
     
-    #optimizer = optim.Adam(network.parameters(), lr = 1e-4)
+    optimizer = optim.Adam(network.parameters(), lr = 1e-4)
     #feel free to try other optimizers and parameters.
     
     start_time = time.time()
 
     for epoch in range(num_epochs):
         #TRAINING
-        #network.train()
+        network.train()
 
         avg_loss = 0
         avg_count = 0
@@ -80,7 +78,9 @@ if not args.test:
         #visualize
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
-        visualize_pred("train", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default)
+        visualize_pred("train", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch,"train")
+        pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
+        visualize_pred("train", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch,"train_nms")
         
         
         #VALIDATION
@@ -96,17 +96,23 @@ if not args.test:
             ann_confidence = ann_confidence_.cuda()
 
             pred_confidence, pred_box = network(images)
-            
+
+            loss_net = SSD_loss(pred_confidence, pred_box, ann_confidence, ann_box)
+            avg_loss += loss_net.data
+            avg_count += 1
+
             pred_confidence_ = pred_confidence.detach().cpu().numpy()
             pred_box_ = pred_box.detach().cpu().numpy()
             
             #optional: implement a function to accumulate precision and recall to compute mAP or F1.
             #update_precision_recall(pred_confidence_, pred_box_, ann_confidence_.numpy(), ann_box_.numpy(), boxs_default,precision_,recall_,thres)
-        
+        print('[%d] val loss: %f' % (epoch, avg_loss/avg_count))
         #visualize
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
-        visualize_pred("val", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default)
+        visualize_pred("val", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch, "test")
+        pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
+        visualize_pred("val", pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, epoch, "test_nms")
         
         #optional: compute F1
         #F1score = 2*precision*recall/np.maximum(precision+recall,1e-8)
@@ -121,7 +127,7 @@ if not args.test:
 
 else:
     #TEST
-    dataset_test = COCO("data/test/images/", "data/test/annotations/", class_num, boxs_default, train = False, image_size=320)
+    dataset_test = COCO("data/data/test/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320, val = False)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=0)
     network.load_state_dict(torch.load('network.pth'))
     network.eval()
@@ -137,7 +143,7 @@ else:
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
         
-        #pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
+        pred_confidence_,pred_box_ = non_maximum_suppression(pred_confidence_,pred_box_,boxs_default)
         
         #TODO: save predicted bounding boxes and classes to a txt file.
         #you will need to submit those files for grading this assignment
