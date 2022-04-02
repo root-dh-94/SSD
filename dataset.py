@@ -123,18 +123,18 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
 
                 #update ann_confidence
                 if cat_id == 0:
-                    ann_confidence[idx][0] = ious[idx]
+                    ann_confidence[idx][0] = 1
                     ann_confidence[idx][3] = 0
                 
                 elif cat_id == 1:
-                    ann_confidence[idx][1] = ious[idx]
+                    ann_confidence[idx][1] = 1
                     ann_confidence[idx][3] = 0
 
                 elif cat_id == 2:
-                    ann_confidence[idx][2] = ious[idx]
+                    ann_confidence[idx][2] = 1
                     ann_confidence[idx][3] = 0
 
-    if ious_true.sum() == 0:
+    elif ious_true.sum() == 0:
         ious_true = np.argmax(ious)
 
         ann_box[ious_true][0] = (x_centre - boxs_default[ious_true][0]) / boxs_default[ious_true][2]
@@ -143,15 +143,15 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
         ann_box[ious_true][3] = math.log(height / boxs_default[ious_true][3])
 
         if cat_id == 0:
-            ann_confidence[ious_true][0] = ious[ious_true]
+            ann_confidence[ious_true][0] = 1
             ann_confidence[ious_true][3] = 0
             
         elif cat_id == 1:
-            ann_confidence[ious_true][1] = ious[ious_true]
+            ann_confidence[ious_true][1] = 1
             ann_confidence[ious_true][3] = 0
 
         elif cat_id == 2:
-            ann_confidence[ious_true][2] = ious[ious_true]
+            ann_confidence[ious_true][2] = 1
             ann_confidence[ious_true][3] = 0
     #TODO:
     #make sure at least one default bounding box is used
@@ -160,7 +160,7 @@ def match(ann_box,ann_confidence,boxs_default,threshold,cat_id,x_min,y_min,x_max
 
 
 class COCO(torch.utils.data.Dataset):
-    def __init__(self, imgdir, anndir, class_num, boxs_default, train = True, image_size=320, val):
+    def __init__(self, imgdir, anndir, class_num, boxs_default, train = True, image_size=320, val = False):
         self.train = train
         self.imgdir = imgdir
         self.anndir = anndir
@@ -186,18 +186,19 @@ class COCO(torch.utils.data.Dataset):
         return len(self.img_names)
 
     def __getitem__(self, index):
-        ann_box = np.zeros([self.box_num,4], np.float32) #bounding boxes
-        ann_confidence = np.zeros([self.box_num,self.class_num], np.float32) #one-hot vectors
+        if self.train or self.val:
+            ann_box = np.zeros([self.box_num,4], np.float32) #bounding boxes
+            ann_confidence = np.zeros([self.box_num,self.class_num], np.float32) #one-hot vectors
         #one-hot vectors with four classes
         #[1,0,0,0] -> cat
         #[0,1,0,0] -> dog
         #[0,0,1,0] -> person
         #[0,0,0,1] -> background
         
-        ann_confidence[:,-1] = 1 #the default class for all cells is set to "background"
+            ann_confidence[:,-1] = 1 #the default class for all cells is set to "background"
         
-        img_name = self.imgdir+self.img_names[index]
-        ann_name = self.anndir+self.img_names[index][:-3]+"txt"
+            img_name = self.imgdir+self.img_names[index]
+            ann_name = self.anndir+self.img_names[index][:-3]+"txt"
         
         #TODO:
         #1. prepare the image [3,320,320], by reading image "img_name" first.
@@ -206,36 +207,43 @@ class COCO(torch.utils.data.Dataset):
         #4. Data augmentation. You need to implement random cropping first. You can try adding other augmentations to get better results.
         
         #Read txt
-        with open(ann_name) as f:
-            lines = f.readlines()
+            with open(ann_name) as f:
+                lines = f.readlines()
         
         #Load and open images
-        image = Image.open(img_name)
-        orig_w, orig_h = image.size[0], image.size[1]
-        image = F.resize(image,(self.image_size,self.image_size))
+            image = Image.open(img_name)
+            orig_w, orig_h = image.size[0], image.size[1]
+            image = F.resize(image,(self.image_size,self.image_size))
 
         #loop through lines in txt file
-        for line in lines:
-            box_coords = line.split(" ")
-            class_id, x_min, y_min, w, h = box_coords
-            h = h[:-2]
-            class_id, x_min, y_min, w, h = int(class_id), float(x_min), float(y_min), float(w), float(h)
-            x_max = x_min + w
-            y_max = y_min + h
+            for line in lines:
+                box_coords = line.split(" ")
+                class_id, x_min, y_min, w, h = box_coords
+                h = h[:-2]
+                class_id, x_min, y_min, w, h = int(class_id), float(x_min), float(y_min), float(w), float(h)
+                x_max = x_min + w
+                y_max = y_min + h
 
             #normalize box values 
-            x_min = x_min / orig_w 
-            x_max = x_max / orig_w 
-            y_min = y_min / orig_h 
-            y_max = y_max / orig_h 
+                x_min = x_min / orig_w 
+                x_max = x_max / orig_w 
+                y_min = y_min / orig_h 
+                y_max = y_max / orig_h 
             
-            ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
+                ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #to use function "match":
         #ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #where [x_min,y_min,x_max,y_max] is from the ground truth bounding box, normalized with respect to the width or height of the image.
         
         #note: please make sure x_min,y_min,x_max,y_max are normalized with respect to the width or height of the image.
         #For example, point (x=100, y=200) in a image with (width=1000, height=500) will be normalized to (x/width=0.1,y/height=0.4)
+        else:
+            img_name = self.imgdir+self.img_names[index]
+            image = Image.open(img_name)
+            image = F.resize(image,(self.image_size,self.image_size))
+
         normalize = transforms.ToTensor()
         image = normalize(image)
+        if image.shape[0] == 1:
+            image = torch.cat((image,image,image), axis = 0)
         return image, ann_box, ann_confidence
