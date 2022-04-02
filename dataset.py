@@ -14,6 +14,7 @@ import cv2
 import math
 from PIL import Image
 from torchvision.transforms import functional as F
+import random
 
 #generate default bounding boxes
 def default_box_generator(layers, large_scale, small_scale):
@@ -174,6 +175,8 @@ class COCO(torch.utils.data.Dataset):
         
         self.img_names = os.listdir(self.imgdir)
         self.image_size = image_size
+        self.normalize = transforms.ToTensor()
+        self.imgtoten = transforms.PILToTensor()
         
         #notice:
         #you can split the dataset into 90% training and 10% validation here, by slicing self.img_names with respect to self.train
@@ -213,27 +216,62 @@ class COCO(torch.utils.data.Dataset):
         #Load and open images
             image = Image.open(img_name)
             orig_w, orig_h = image.size[0], image.size[1]
-            image = F.resize(image,(self.image_size,self.image_size))
 
-        #loop through lines in txt file
-            for line in lines:
-                box_coords = line.split(" ")
-                class_id, x_min, y_min, w, h = box_coords
-                h = h[:-2]
-                class_id, x_min, y_min, w, h = int(class_id), float(x_min), float(y_min), float(w), float(h)
-                x_max = x_min + w
-                y_max = y_min + h
+            if self.val:
+                image = F.resize(image,(self.image_size,self.image_size))
 
-            #normalize box values 
-                x_min = x_min / orig_w 
-                x_max = x_max / orig_w 
-                y_min = y_min / orig_h 
-                y_max = y_max / orig_h 
-            
-                ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
+            #loop through lines in txt file
+                for line in lines:
+                    box_coords = line.split(" ")
+                    class_id, x_min, y_min, w, h = box_coords
+                    h = h[:-2]
+                    class_id, x_min, y_min, w, h = int(class_id), float(x_min), float(y_min), float(w), float(h)
+                    x_max = x_min + w
+                    y_max = y_min + h
+
+                #normalize box values 
+                    x_min = x_min / orig_w 
+                    x_max = x_max / orig_w 
+                    y_min = y_min / orig_h 
+                    y_max = y_max / orig_h 
+
+                    
+                    ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #to use function "match":
         #ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,class_id,x_min,y_min,x_max,y_max)
         #where [x_min,y_min,x_max,y_max] is from the ground truth bounding box, normalized with respect to the width or height of the image.
+            if self.train:
+
+                xmins = []
+                xmaxs = []
+                ymins = []
+                ymaxs = []
+                classes = []
+                for line in lines:
+                    box_coords = line.split(" ")
+                    class_id, x_min, y_min, w, h = box_coords
+                    h = h[:-2]
+                    class_id, x_min, y_min, w, h = int(class_id), float(x_min), float(y_min), float(w), float(h)
+                    x_max = x_min + w
+                    y_max = y_min + h
+
+                
+                    xmins.append(int(x_min))
+                    xmaxs.append(math.ceil(x_max))
+                    ymins.append(int(y_min)) 
+                    ymaxs.append(math.ceil(y_max))
+                    classes.append(class_id)
+
+                image = self.imgtoten(image)    
+                w_new,h_new,x_low,y_low,image = randCrop(min(xmins),min(ymins),max(xmaxs),max(ymaxs),image,orig_w,orig_h)
+                image = F.resize(image,(self.image_size,self.image_size))
+                for idx in range(0,len(xmins)):
+                    xmins[idx] = (xmins[idx] - x_low)/w_new
+                    ymins[idx] = (ymins[idx] - y_low)/h_new
+                    xmaxs[idx] = (xmaxs[idx] - x_low)/w_new
+                    ymaxs[idx] = (ymaxs[idx] - y_low)/h_new
+                    ann_box,ann_confidence = match(ann_box,ann_confidence,self.boxs_default,self.threshold,classes[idx],xmins[idx],ymins[idx],xmaxs[idx],ymaxs[idx])
+
         
         #note: please make sure x_min,y_min,x_max,y_max are normalized with respect to the width or height of the image.
         #For example, point (x=100, y=200) in a image with (width=1000, height=500) will be normalized to (x/width=0.1,y/height=0.4)
@@ -242,8 +280,21 @@ class COCO(torch.utils.data.Dataset):
             image = Image.open(img_name)
             image = F.resize(image,(self.image_size,self.image_size))
 
-        normalize = transforms.ToTensor()
-        image = normalize(image)
+        if not self.train:
+            image = self.normalize(image)
+        else:
+            image = image / 255    
         if image.shape[0] == 1:
             image = torch.cat((image,image,image), axis = 0)
-        return image, ann_box, ann_confidence
+        return image, ann_box, ann_confidence,img_name
+
+def randCrop(xmin,ymin,xmax,ymax,image,img_w,img_h):
+    x_low = random.randint(0,xmin)
+    y_low = random.randint(0,ymin)
+    x_high = random.randint(xmax,img_w)
+    y_high = random.randint(ymax,img_h)
+    w = x_high - x_low
+    h = y_high - y_low
+
+    new_image = image[:, y_low:y_high, x_low:x_high]
+    return w,h,x_low,y_low,new_image
