@@ -289,7 +289,10 @@ class COCO(torch.utils.data.Dataset):
             image = image / 255    
         if image.shape[0] == 1:
             image = torch.cat((image,image,image), axis = 0)
-        return image, ann_box, ann_confidence,img_name.rsplit("/", 1)[-1]
+        img_name = img_name.rsplit("/", 1)[-1]
+        img_name_str = img_name[0:-4]
+        
+        return image, ann_box, ann_confidence,img_name_str
 
 def randCrop(xmin,ymin,xmax,ymax,image,img_w,img_h):
     x_low = random.randint(0,xmin)
