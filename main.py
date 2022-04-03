@@ -75,7 +75,7 @@ if not args.test:
             avg_loss += loss_net.data
             avg_count += 1
         loss = avg_loss/avg_count
-        train_losses.append(loss)
+        train_losses.append(loss.item())
         print('[%d] time: %f train loss: %f' % (epoch, time.time()-start_time, loss))
         
         #visualize
@@ -110,7 +110,7 @@ if not args.test:
             #optional: implement a function to accumulate precision and recall to compute mAP or F1.
             #update_precision_recall(pred_confidence_, pred_box_, ann_confidence_.numpy(), ann_box_.numpy(), boxs_default,precision_,recall_,thres)
         loss = avg_loss/avg_count
-        val_losses.append(loss)
+        val_losses.append(loss.item())
         print('[%d] val loss: %f' % (epoch, loss))
         #visualize
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
@@ -128,9 +128,14 @@ if not args.test:
             #save last network
             print('saving net...')
             torch.save(network.state_dict(), 'network.pth')
-    
-    plt.plot(np.arange(1,epoch+1),train_losses,"g-",label = "train losses")
-    plt.plot(np.arange(1,epoch+1),val_losses,"r-",label = "test_losses")
+    print(train_losses)
+    print(val_losses)
+    e = [i for i in range(1, epoch+2)]
+    print(e)
+    #plt.plot(np.arange(1,epoch+1),train_losses,"g-",label = "train losses")
+    #plt.plot(np.arange(1,epoch+1),val_losses,"r-",label = "test_losses")
+    plt.plot(e,train_losses,"g-",label = "train losses")
+    plt.plot(e,val_losses,"r-",label = "test_losses")
     plt.xlabel("Epochs")
     plt.ylabel("Losses")
     plt.yticks(np.arange(.09,.22,.04))
@@ -143,7 +148,7 @@ else:
     idxs = []
     dataset_test = COCO("data/data/test/images/", "data/data/train/annotations/", class_num, boxs_default, train = False, image_size=320, val = False)
     dataloader_test = torch.utils.data.DataLoader(dataset_test, batch_size=1, shuffle=False, num_workers=0)
-    network.load_state_dict(torch.load('network.pth'))
+    network.load_state_dict(torch.load('89network.pth'))
     network.eval()
     
     for i, data in enumerate(dataloader_test, 0):
@@ -152,11 +157,11 @@ else:
         ann_box = ann_box_.cuda()
         ann_confidence = ann_confidence_.cuda()
 
-        pred_confidence, pred_box = network(images)
+        pred_confidence, pred_box = network(images,batch_size=1)
 
         pred_confidence_ = pred_confidence[0].detach().cpu().numpy()
         pred_box_ = pred_box[0].detach().cpu().numpy()
-        
+        print(pred_confidence[0].detach().cpu().numpy().shape)
         
         visualize_pred("test", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, image_name, "test_set_nms")
         
@@ -166,23 +171,26 @@ else:
         #you will need to submit those files for grading this assignment
         
         visualize_pred("test", image_name, pred_confidence_, pred_box_, ann_confidence_[0].numpy(), ann_box_[0].numpy(), images_[0].numpy(), boxs_default, image_name, "test_set_nms")
-        for idx, i in enumerate(pred_confidence[0:3]):
-            if i[0] != 0 or i[1] != 0 or i[2] ! = 0:
+        pred_confidence = pred_confidence[0].numpy()
+        for idx in range(pred_confidence.shape[1]):
+            
+            i = pred_confidence[0,idx]        
+            if i[0] != 0 or i[1] != 0 or i[2] != 0:
                 idxs.append(idx)
         
-        with open('image_name.txt','w') as f:
+        with open(image_name + '.txt','w') as f:
             for idx in idxs:
-                d1x,d1y,d1w,d1h = pred_box[idx]
+                d1x,d1y,d1w,d1h = pred_box[0,idx]
                 p1x,p1y,p1w,p1h = boxs_default[idx,0:4]
-                x1_centre = p1w * d1x + p1x
-                y1_centre = p1h * d1y + p1y
-                w1 = p1w * np.exp(d1w)
-                h1 = p1h * np.exp(d1h)
+                x1_centre = p1w.item() * d1x.item() + p1x.item()
+                y1_centre = p1h.item() * d1y.item() + p1y.item()
+                w1 = p1w.item() * np.exp(d1w.item())
+                h1 = p1h.item() * np.exp(d1h.item())
                 x1_min = x1_centre - w1 / 2
                 y1_min = y1_centre - h1 / 2
                 x1_max = x1_centre + w1 / 2
                 y1_max = y1_centre + h1 / 2
-                id = np.argmax(pred_confidence[idx][0:3])
+                id = np.argmax(pred_confidence[0,idx][0:3])
                 f.write(str(id) + ' ' + str(x1_min) + ' ' + str(y1_min) + ' ' + str(w1) + ' ' + str(h1) + '\n')
         cv2.waitKey(1000)
 
