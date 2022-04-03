@@ -6,7 +6,7 @@ from dataset import iou
 colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
 #use [blue green red] to represent different classes
 
-def visualize_pred(windowname, pred_confidence, pred_box, ann_confidence, ann_box, image_, boxs_default, epoch, title):
+def visualize_pred(windowname, image_name, pred_confidence, pred_box, ann_confidence, ann_box, image_, boxs_default, epoch, title):
     #input:
     #windowname      -- the name of the window to display the images
     #pred_confidence -- the predicted class labels from SSD, [num_of_boxes, num_of_classes]
@@ -150,18 +150,24 @@ def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, thresh
         #find max prob
 
         maximum = np.amax(confidence_[a,0:3])
-        
+        #print(maximum)
+
         if maximum>threshold or (maximum < threshold and count == 0):
             ious = []
 
             #find row/col(box) where max prob occurs
             #row_idx = np.where(confidence_[a,0:3]==maximum)[0][0]
             indeces = np.where(confidence_[:,0:3]==maximum)
+            complete = 0
             for idx in indeces:
+                complete += 1
                 if idx[0] in a:
                     row_idx = idx[0]
                     break
+            if complete == len(indeces):
+                break
             
+            #print(row_idx)
             column_idx = np.argmax(confidence_[row_idx,0:3])
             rows.append(row_idx)
             #print(row_idx,column_idx,len(a))
@@ -230,7 +236,7 @@ def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, thresh
             
             #remove boxes that have a lot of overlap
             for idx, val in enumerate(ious):
-                if val > 0.2:
+                if val > 0.1:
                     
                     #a.pop(np.where(a==row_idx)[0][0])]
                     #print(idx)
@@ -239,7 +245,8 @@ def non_maximum_suppression(confidence_, box_, boxs_default, overlap=0.5, thresh
                     #print(same_class_rows[idx])
                     #print(a)
                     #print(a.index(same_class_rows[idx]))
-                    a.pop(a.index(same_class_rows[idx]))
+                    confidence_[same_class_rows[idx],column_idx] = 0
+                    #a.pop(a.index(same_class_rows[idx]))
             count +=1
         else: break
     for idx, row in enumerate(confidence_):
