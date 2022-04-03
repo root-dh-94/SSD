@@ -50,6 +50,7 @@ def SSD_loss(pred_confidence, pred_box, ann_confidence, ann_box):
             #obj_idx.append(idx)
         #else: noobj_idx.append(idx)
     #loss_cls = F.cross_entropy(pred_confidence[obj_idx], ann_confidence[obj_idx]) + 3 * F.cross_entropy(pred_confidence[noobj_idx], ann_confidence[noobj_idx])
+    #The idea for the line below was taken from Liam Sparling
     obj_idx = (torch.max(ann_confidence[:,:3],dim=1)[0] > 0.5)
     noobj_idx = (torch.max(ann_confidence[:,:3],dim=1)[0] < 0.5)
     loss_cls = F.cross_entropy(pred_confidence[obj_idx], ann_confidence[obj_idx]) + 3 * F.cross_entropy(pred_confidence[noobj_idx], ann_confidence[noobj_idx])
@@ -83,13 +84,14 @@ class SSD(nn.Module):
         self.fork_branch_conv_3_l = nn.Conv2d(256,16,3,1,1,bias=True)
         self.fork_branch_conv_3_r = nn.Conv2d(256,16,3,1,1,bias=True)
         
-    def forward(self, x):
+    def forward(self, x, batch_size = 32):
         #input:
         #x -- images, [batch_size, 3, 320, 320]
         
         #x = x/255.0 #normalize image. If you already normalized your input image in the dataloader, remove this line.
-
+        self.batch_size = batch_size
         #TODO: define forward
+        
         x = self.convBlock(x)
 
         x1 = self.main_conv1(x)
